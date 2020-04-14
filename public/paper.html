@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Paper</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--CSS demo from -->
+
+  </head>
+
+  <body>
+
+    <!-- <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script> -->
+
+      <!--With static file server that serves all / from /public/      -->
+      <script type="text/javascript" src="paper-core.js"></script>
+      <script src="/socket.io/socket.io.js"></script>
+      <script type="text/javascript">
+
+          // Only executed our code once the DOM is ready.
+          paper.install(window);
+
+          window.onload = function() {
+              // * Setup Paper
+            paper.setup('paperCanvas');
+            var ui = new Tool();
+
+            ui.onMouseDown = function(event){
+            }
+
+            ui.onMouseDrag = function(event) {
+            }
+
+
+          // * socket setup
+          var socket = io();
+            //
+          socket.on('connect', ()=>{
+            //
+            socket.emit('msg', 'Hi its picture frame, im ready');
+
+          });
+
+            // Socket / Receive
+          socket.on('msg', (data)=>{
+            console.log(`msg: `, data );
+          });
+
+
+          // create spectrum paths
+          let fmin = 20;
+          let fmax = 900;
+
+          var spectrum = [];
+
+          for(let x=0; x<fmax; x++){
+            let bar = new Path({
+              strokeColor: 'blue',
+              strokeWidth: 1,
+              segments: [ [10+x*1,50], [10+x*1,60] ]
+            });
+            spectrum.push(bar)
+          }
+
+
+
+          socket.on('fft',(data)=>{
+            let mag = data.mag; //.slice(fmin,fmax);
+
+            //  * Get peak & average
+            let peak = {val: 0, i: 0};
+            let total = 0;
+            for(let f=fmin;f<fmax;f++){
+              if(mag[f]>peak.val){
+                peak.val = mag[f];
+                peak.i = f;
+              }
+              total += mag[f];
+            }
+
+            let average = total / (fmax-fmin)
+            let whistle = false;
+            let peak2 = {val:fmin+1, i:fmin};
+
+            if( peak.val>30000 && peak.i>90 && peak.i<240 )
+            {
+
+              // * 2nd peak
+              for(let f=fmin;f<fmax;f++){
+                if( f<peak.i-1 || f>peak.i+1 )
+                if(mag[f]>peak2.val){
+                  peak2.val = mag[f];
+                  peak2.i = f;
+                }
+              }
+
+              // * Sort
+              if(peak2.i<peak.i) {
+                let sw = peak;          peak = peak2;          peak2 = sw;
+              }
+
+              // check harmony
+              let prop = peak2.i / peak.i;
+              prop = prop - Math.round(prop);
+
+              // console.log( ' peak : ',peak.val,'\t\tprop :  ', prop );
+
+              if( Math.abs(prop)<0.025 ){
+                // 2nd peak indicates harmony
+
+                let harmony = 0;
+                harmony += mag[peak.i-1];  harmony += mag[peak.i]; harmony += mag[peak.i+1];
+                for(let f=2;f<=4; f++){
+                  let h = f*peak.i;
+                  harmony += mag[h-1];  harmony += mag[h];  harmony += mag[h+1];
+                  // Eo for
+                }
+                harmony = Math.floor(harmony);
+
+                let snr = harmony/total;
+                if(harmony>200000 && snr > 0.1){
+                  // console.log(' harmony :   ',harmony,'\t ratio : ', snr,' \twhistle : ',  peak.i );
+                  // console.log(' whistle : ',  peak.i );
+                  whistles(peak.i);
+                  whistle = true;
+                }
+                // else                  console.log(' harmony :   ',harmony,'\t ratio : ', snr );
+
+                // if prop
+              }
+              // else console.log(' prop off : ', prop );
+              // if mag
+            }
+
+
+            // Draw FFT
+            // for( let f=fmin; f<fmax; f++ ){
+            //   spectrum[f].lastSegment.point.y = 50 + mag[f]/100;
+            //   let ratio = f/peak.i;
+            //   ratio = Math.abs(ratio - Math.round(ratio) );
+            //
+            //   if(f == peak.i && whistle){
+            //     spectrum[f].strokeColor = 'red';
+            //     spectrum[f].strokeWidth = 3;
+            //   }
+            //   else if(f==peak2.i && whistle){
+            //     spectrum[f].strokeColor = 'orange';
+            //     spectrum[f].strokeWidth = 3;
+            //   }
+            //   else if( whistle && (ratio)<0.01 ){
+            //     spectrum[f].strokeColor = 'blue';
+            //     spectrum[f].strokeWidth = 1;
+            //   }
+            //   else {
+            //     spectrum[f].strokeColor = 'grey';
+            //     spectrum[f].strokeWidth = 1;
+            //   }
+            //   // Eo for
+            // }
+            // Eo on data
+
+            if(!triggered)
+            if(new Date()-last_t>800){
+              console.log(' Whitle : ', sequence );
+              triggered = true;
+            }
+          });
+
+          var last_t = new Date();
+          var last_whi = 0;
+          var sequence = [];
+          var triggered = true;
+
+          function whistles(f){
+            let t = new Date();
+            let b = get_band(f);
+
+            if(t-last_t < 800){
+              // still whistle
+              if(b!=last_whi){
+                console.log(' w : ', get_band(f),'\t/', f);
+                sequence.push(b);
+              }
+            }
+            else{
+              console.log(' whistle!');
+              console.log(' w : ', get_band(f),'\t/', f);
+              sequence = [b];
+              triggered = false;
+            }
+
+            last_whi = b;
+            last_t = t;
+            // Eo func
+          }
+
+          function get_band(f){
+            return Math.round(f/10);
+            // if(f<135)
+            //   return 0;
+            // else if(f<170)
+            //   return 1;
+            // else if(f<200)
+            //   return 2;
+            // else {
+            //   return 3;
+            // }
+            // Eo func
+          }
+
+          // Eo window
+        }
+
+        </script>
+
+    <div>
+        <canvas id="paperCanvas" resize style=" width:1180px; height:500px; border:1px solid grey;"></canvas>
+    </div>
+
+  </body>
+
+
+</html>

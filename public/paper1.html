@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Paper</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!--CSS demo from -->
+
+  </head>
+
+  <body>
+
+    <!--Bootstrap -->
+          <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+
+      <!--With static file server that serves all / from /public/      -->
+      <script type="text/javascript" src="paper-core.js"></script>
+      <script src="/socket.io/socket.io.js"></script>
+      <script type="text/javascript">
+
+          // Only executed our code once the DOM is ready.
+          paper.install(window);
+
+          window.onload = function() {
+              // * Setup Paper
+            paper.setup('paperCanvas');
+            var ui = new Tool();
+
+            ui.onMouseDown = function(event){
+            }
+
+            ui.onMouseDrag = function(event) {
+            }
+
+
+          // * socket setup
+          const socket = io();
+            //
+          socket.on('connect', ()=>{
+            //
+            socket.emit('msg', 'Hi its picture frame, im ready');
+
+          });
+
+            // Socket / Receive
+          socket.on('msg', (data)=>{
+            console.log(`msg: `, data );
+          });
+
+          // create spectrum paths
+          var spectrum = [];
+          for(let x=0; x<512; x++){
+            let bar = new Path({
+              strokeColor: 'blue',
+              strokeWidth: 1,
+              segments: [ [10+x*2,50], [10+x*2,60] ]
+            });
+            spectrum.push(bar)
+          }
+
+          var dev_line = new Path({
+            strokeColor: 'green',
+            strokeWidth: 2,
+            segments: [ [10,0] , [1024+10,0] ]
+          });
+
+          socket.on('fft',(data)=>{
+            let mag = data.mag;
+            // console.log( spectrum[0].lastSegment.point );
+
+            let fmin = 45;
+            let fmax = 512;
+
+            // * get mean
+            let avrg = 0;
+            for( let i=fmin; i< fmax; i++ )
+            {              avrg += mag[i];            }
+            avrg = (avrg / (fmax-fmin) );
+
+            // * standard deviation
+            // let st_dv = 0;
+            // for(let f=fmin;f<fmax;f++){
+            //   let dev = mag[f] -average;
+            //   st_dv += dev *dev;
+            // }
+            // st_dv = Math.sqrt( st_dv / (fmax-fmin) );
+            // st_dv = Math.round(st_dv);
+            
+            // * standard deviation
+            let st_dv = 0;
+            for( let i=fmin; i< fmax; i++ )
+            {
+              let dev = mag[i] -avrg;
+              st_dv += dev *dev;
+            }
+            st_dv = Math.sqrt( st_dv / (fmax-fmin) );
+            st_dv = Math.round(st_dv);
+
+            let lvl = avrg + st_dv;
+            dev_line.firstSegment.point.y = 50 +lvl /100;
+            dev_line.lastSegment.point.y = 50 +lvl /100;
+            avrg = Math.round(avrg);
+
+            // * get peak
+            let max = { i:fmin+1, val: mag[fmin+1] };
+            for( let i=fmin; i< fmax; i++ ){
+              if(mag[i]>max.val){
+                max.i = i;
+                max.val = mag[i];
+              }
+            }
+
+            // * get second
+            let s = max.i+10;
+            let scnd = { i:s, val: mag[s] };
+            for( let i=s; i< fmax; i++ ){
+              if(mag[i]>scnd.val){
+                scnd.i = i;
+                scnd.val = mag[i];
+              }
+            }
+            let diff = (scnd.i/max.i) -Math.round(scnd.i/max.i);
+
+            let whistle = false;
+            if(max.val>10000)
+            if(Math.abs(diff)<0.025){
+              //   ${ diff }
+              whistle = true;
+              console.log(` max :${max.val}\t${max.i}\t\t scnd : ${scnd.val}\t${scnd.i} \t\t av: ${avrg}\tstd dev : ${st_dv}  `);
+            }
+
+            for( let i=fmin; i< fmax; i++ ){
+              spectrum[i].lastSegment.point.y = 50 + mag[i]/100;
+              if( (i==max.i || i==scnd.i) && whistle ){
+                spectrum[i].strokeColor = 'green';
+                spectrum[i].strokeWidth = 4;
+              }
+              else {
+                spectrum[i].strokeWidth = 1;
+                //if(mag[i] > max.val/2)
+                if(mag[i] > lvl)
+                  spectrum[i].strokeColor = 'blue';
+                else
+                  spectrum[i].strokeColor = 'grey';
+              }
+            }
+            //
+          });
+
+
+          // Eo window
+        }
+
+        </script>
+
+    <div>
+        <canvas id="paperCanvas" resize style=" width:1180px; height:500px; border:1px solid grey;"></canvas>
+    </div>
+
+  </body>
+
+
+</html>
