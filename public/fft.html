@@ -52,7 +52,7 @@
           let fmax = 900;
 
           var spectrum = [];
-          
+
           for(let x=0; x<fmax; x++){
             let bar = new Path({
               strokeColor: 'blue',
@@ -82,6 +82,13 @@
             let whistle = false;
             let peak2 = {val:fmin+1, i:fmin};
 
+            let std_dev = 0;
+            for(let f=fmin;f<fmax;f++){
+              let d = (mag[f]-average);
+                std_dev += d*d;
+            }
+            std_dev = Math.sqrt( (fmax-fmin) );
+
             if( peak.val>30000 && peak.i>90 && peak.i<240 )
             {
               // * first peak in target-band
@@ -100,74 +107,48 @@
                 let sw = peak;          peak = peak2;          peak2 = sw;
               }
 
-              // check harmony
-              let prop = peak2.i / peak.i;
-              prop = prop - Math.round(prop);
+              whistle = true;
 
+              console.log(peak, average, std_dev);
               // console.log( ' peak : ',peak.val,'\t\tprop :  ', prop );
 
-              if( Math.abs(prop)<0.025 ){
-                // 2nd peak indicates harmony
-
-                let harmony = 0;
-                harmony += mag[peak.i-1];  harmony += mag[peak.i]; harmony += mag[peak.i+1];
-
-                for(let f=2;f<=4; f++){
-                  let h = f*peak.i;
-                  harmony += mag[h-1];  harmony += mag[h];  harmony += mag[h+1];
-                  // Eo for
-                }
-                harmony = Math.floor(harmony);
-                
-                let snr = harmony/total;
-                console.log(' harmony :   ',harmony,'\t total : ', total,' \t ratio : ',  snr  );
-
-                if(harmony>200000 && snr > 0.1){
-                  
-                  // console.log(' whistle : ',  peak.i );
-                  whistles(peak.i);
-                  whistle = true;
-                }
-                // else                  console.log(' harmony :   ',harmony,'\t ratio : ', snr );
-
-                // if prop
-              }
-              // else console.log(' prop off : ', prop );
+              
               // if mag
             }
 
 
             // Draw FFT
-            // for( let f=fmin; f<fmax; f++ ){
-            //   spectrum[f].lastSegment.point.y = 50 + mag[f]/100;
-            //   let ratio = f/peak.i;
-            //   ratio = Math.abs(ratio - Math.round(ratio) );
-            //
-            //   if(f == peak.i && whistle){
-            //     spectrum[f].strokeColor = 'red';
-            //     spectrum[f].strokeWidth = 3;
-            //   }
-            //   else if(f==peak2.i && whistle){
-            //     spectrum[f].strokeColor = 'orange';
-            //     spectrum[f].strokeWidth = 3;
-            //   }
-            //   else if( whistle && (ratio)<0.01 ){
-            //     spectrum[f].strokeColor = 'blue';
-            //     spectrum[f].strokeWidth = 1;
-            //   }
-            //   else {
-            //     spectrum[f].strokeColor = 'grey';
-            //     spectrum[f].strokeWidth = 1;
-            //   }
-            //   // Eo for
-            // }
+            for( let f=fmin; f<fmax; f++ ){
+              spectrum[f].lastSegment.point.y = 50 + mag[f]/100;
+              let ratio = f/peak.i;
+              ratio = Math.abs(ratio - Math.round(ratio) );
+            
+              if(f == peak.i && whistle){
+                spectrum[f].strokeColor = 'red';
+                spectrum[f].strokeWidth = 3;
+              }
+              else if(f==peak2.i && whistle){
+                spectrum[f].strokeColor = 'orange';
+                spectrum[f].strokeWidth = 3;
+              }
+              // else if( whistle && (ratio)<0.01 ){
+              else if(mag[f]> average + std_dev ){
+                spectrum[f].strokeColor = 'blue';
+                spectrum[f].strokeWidth = 1;
+              }
+              else {
+                spectrum[f].strokeColor = 'grey';
+                spectrum[f].strokeWidth = 1;
+              }
+              // Eo for
+            }
             // Eo on data
 
-            if(!triggered)
-            if(new Date()-last_t>800){
-              console.log(' Whitle : ', sequence );
-              triggered = true;
-            }
+            // if(!triggered)
+            // if(new Date()-last_t>800){
+            //   console.log(' Whitle : ', sequence );
+            //   triggered = true;
+            // }
           });
 
           var last_t = new Date();
