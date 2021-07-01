@@ -53,17 +53,15 @@ var micInstance = mic({
     fileType: 'wav'
     // exitOnSilence: 6
 });
-var micInputStream = micInstance.getAudioStream();
-
-var outputFileStream = fs.WriteStream('output.wav');
 
 var buffer = [];
 
+var micInputStream = micInstance.getAudioStream();
+var outputFileStream = fs.WriteStream('output.wav');
 micInputStream.pipe(outputFileStream);
-
 micInputStream.on('error', function(err) {
     cosole.log("Error in Input Stream: " + err);
-});
+}); 
 
 micInputStream.on('startComplete', function() {
     console.log("Got SIGNAL startComplete");
@@ -337,6 +335,7 @@ const LEN = 146;
 const ledStrip = new dotstar.Dotstar(spi, {
   length: LEN
 });
+ledStrip.all(10,1,0); ledStrip.sync();
 
 let whistle_len = 0;
 
